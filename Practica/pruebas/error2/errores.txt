@@ -1,0 +1,7 @@
+Error lexico (107) en linea 2: la constante entera 40000 supera el maximo (32767)
+Error lexico (108) en linea 3: la constante real '3.' esta mal formada: falta algun digito tras el punto (ej: 3.0)
+Error lexico (109) en linea 4: la constante real 200000000.5 supera el maximo (117549436.0)
+Error lexico (101) en linea 7: el caracter '"' no pertenece al lenguaje (las cadenas van con comilla simple)
+Error lexico (101) en linea 7: el caracter '"' no pertenece al lenguaje (las cadenas van con comilla simple)
+
+Total: 5 error(es).

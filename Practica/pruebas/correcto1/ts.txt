@@ -1,0 +1,10 @@
+TABLA PRINCIPAL #1:
+* LEXEMA : 'contador'
+  --------- ----------
+* LEXEMA : 'media'
+  --------- ----------
+* LEXEMA : 'nombre'
+  --------- ----------
+* LEXEMA : 'fin'
+  --------- ----------
+

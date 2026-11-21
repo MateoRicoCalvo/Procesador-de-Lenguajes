@@ -1,0 +1,963 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><style>
+@page { size: A4; margin: 2cm 2cm 2cm 2cm; }
+body { font-family: 'DejaVu Sans', Arial, sans-serif; font-size: 10.5pt; line-height: 1.4; color:#111; }
+h1 { font-size: 16pt; border-bottom: 2px solid #1f3b73; padding-bottom: 3px; color:#1f3b73; margin-top: 0; }
+h2 { font-size: 13pt; color:#1f3b73; margin: 16px 0 6px; }
+h3 { font-size: 11.5pt; margin: 12px 0 4px; }
+h4 { font-size: 10pt; margin: 8px 0 3px; color:#333; }
+pre { font-family: 'DejaVu Sans Mono', monospace; font-size: 8.3pt; background:#f5f6f8; border:1px solid #dde; padding:6px 8px; white-space: pre-wrap; margin:3px 0; }
+table { border-collapse: collapse; width:100%; font-size: 9pt; margin: 4px 0; }
+th, td { border:1px solid #bbb; padding: 2px 5px; vertical-align: top; text-align:left; }
+th { background:#e8ecf4; }
+code { font-family: 'DejaVu Sans Mono', monospace; font-size: 8.5pt; }
+.portada { height: 24cm; display:flex; flex-direction:column; justify-content:center; text-align:center; page-break-after: always; }
+.portada .t { font-size: 24pt; font-weight:bold; color:#1f3b73; }
+.portada .s { font-size: 14pt; margin-top: 10px; }
+.portada .g { font-size: 16pt; margin-top: 50px; font-weight:bold; }
+.portada .m { font-size: 13pt; margin-top: 12px; line-height:1.8; }
+.salto { page-break-before: always; }
+.cols { display:flex; gap:12px; } .cols > * { flex:1; }
+.two { display:flex; gap:10px; } .two > div { flex:1; min-width:0; }
+.caso { page-break-before: always; }
+.aut svg { width: 100%; height: auto; max-height: 23cm; }
+.aut { text-align:center; }
+</style></head><body>
+<div class="portada">
+<div>Universidad Politécnica de Madrid<br>Escuela Técnica Superior de Ingenieros Informáticos</div>
+<div class="t" style="margin-top:60px">Procesadores de Lenguajes</div>
+<div class="s">Práctica 2026/2027 — Primera entrega<br>Analizador Léxico, Tabla de Símbolos y Gestor de Errores</div>
+<div class="g">Grupo 131</div>
+<div class="m">Mateo Rico<br>Hugo Carro da Silva<br>Andrés Muñoz</div>
+<div style="margin-top:50px">Octubre de 2026</div>
+</div>
+
+<h1>1. Introducción</h1>
+<p>Este documento describe el diseño de los primeros módulos del Procesador del lenguaje PdL-JS del grupo 131: el Analizador Léxico, la Tabla de Símbolos y el Gestor de Errores. Las opciones asignadas al grupo son:</p>
+<ul><li>Sentencia repetitiva <b>do-while</b>.</li><li>Operador especial <b>pre-auto-decremento</b> (<code>--</code> como prefijo).</li><li>Comentarios de <b>bloque</b> (<code>/* */</code>).</li><li>Cadenas con <b>comillas simples</b> (<code>' '</code>).</li><li>Análisis Sintáctico <b>Descendente Recursivo</b> (siguiente entrega).</li></ul>
+<p>Para la parte común se han elegido los operadores aritméticos <code>+</code> y <code>-</code>, los relacionales <code>==</code> y <code>&gt;</code>, los lógicos <code>&amp;&amp;</code> y <code>!</code>, y la asignación <code>=</code>. Se incluyen además las constantes lógicas <code>true</code> y <code>false</code>. El procesador está implementado en Java (ejecutable <code>Procesador.jar</code>); recibe el fichero fuente por línea de comandos y genera <code>tokens.txt</code>, <code>ts.txt</code> y <code>errores.txt</code>.</p>
+
+<h1>2. Diseño del Analizador Léxico</h1>
+<h2>2.1 Tokens</h2>
+<p>Las palabras reservadas, operadores y separadores no llevan atributo. El atributo del identificador es su posición en la Tabla de Símbolos; el de las constantes, su valor; y el de las cadenas, su contenido (sin comillas, que en el fichero de tokens se escribe entre comillas dobles según el formato obligatorio). El lenguaje distingue mayúsculas y minúsculas y las palabras reservadas se escriben en minúscula.</p>
+<div class="cols"><table class="tok"><tr><th>Elemento</th><th>Token</th></tr><tr><td>let</td><td><code>&lt;LET, &gt;</code></td></tr><tr><td>function</td><td><code>&lt;FUNCTION, &gt;</code></td></tr><tr><td>void</td><td><code>&lt;VOID, &gt;</code></td></tr><tr><td>int</td><td><code>&lt;INT, &gt;</code></td></tr><tr><td>float</td><td><code>&lt;FLOAT, &gt;</code></td></tr><tr><td>boolean</td><td><code>&lt;BOOLEAN, &gt;</code></td></tr><tr><td>string</td><td><code>&lt;STRING, &gt;</code></td></tr><tr><td>if</td><td><code>&lt;IF, &gt;</code></td></tr><tr><td>do</td><td><code>&lt;DO, &gt;</code></td></tr><tr><td>while</td><td><code>&lt;WHILE, &gt;</code></td></tr><tr><td>return</td><td><code>&lt;RETURN, &gt;</code></td></tr><tr><td>echo</td><td><code>&lt;ECHO, &gt;</code></td></tr><tr><td>prompt</td><td><code>&lt;PROMPT, &gt;</code></td></tr><tr><td>true</td><td><code>&lt;TRUE, &gt;</code></td></tr><tr><td>false</td><td><code>&lt;FALSE, &gt;</code></td></tr><tr><td>Identificador</td><td><code>&lt;ID, posición en la TS&gt;</code></td></tr><tr><td>Constante entera</td><td><code>&lt;ENTERO, valor (0..32767)&gt;</code></td></tr></table><table class="tok"><tr><th>Elemento</th><th>Token</th></tr><tr><td>Constante real</td><td><code>&lt;REAL, valor (d+.d+, ≤ 117549436.0)&gt;</code></td></tr><tr><td>Cadena &#x27; &#x27;</td><td><code>&lt;CADENA, contenido (≤ 64 caracteres)&gt;</code></td></tr><tr><td>+</td><td><code>&lt;SUMA, &gt;</code></td></tr><tr><td>-</td><td><code>&lt;RESTA, &gt;</code></td></tr><tr><td>--</td><td><code>&lt;DECREMENTO, &gt;</code></td></tr><tr><td>=</td><td><code>&lt;ASIG, &gt;</code></td></tr><tr><td>==</td><td><code>&lt;IGUAL, &gt;</code></td></tr><tr><td>&gt;</td><td><code>&lt;MAYOR, &gt;</code></td></tr><tr><td>&amp;&amp;</td><td><code>&lt;AND, &gt;</code></td></tr><tr><td>!</td><td><code>&lt;NOT, &gt;</code></td></tr><tr><td>(</td><td><code>&lt;PARABIERTO, &gt;</code></td></tr><tr><td>)</td><td><code>&lt;PARCERRADO, &gt;</code></td></tr><tr><td>{</td><td><code>&lt;LLAVEABIERTA, &gt;</code></td></tr><tr><td>}</td><td><code>&lt;LLAVECERRADA, &gt;</code></td></tr><tr><td>;</td><td><code>&lt;PUNTOYCOMA, &gt;</code></td></tr><tr><td>,</td><td><code>&lt;COMA, &gt;</code></td></tr><tr><td>fin de fichero</td><td><code>&lt;EOF, &gt;</code></td></tr></table></div>
+
+<h2>2.2 Gramática regular</h2>
+<p>G = (N, T, S, P) con N = {S, A, B, C, D, E, F, G, H, I, K, M}, axioma S y producciones:</p>
+<pre>S → del S | l A | _ A | d B | &#x27; E | / F | - G | = H | &amp; I
+   | + | &gt; | ! | ( | ) | { | } | ; | , | eof
+A → l A | d A | _ A | λ
+B → d B | . C | λ
+C → d D
+D → d D | λ
+E → c E | &#x27;
+F → * K
+K → c1 K | * M
+M → * M | c2 K | / S
+G → - | λ
+H → = | λ
+I → &amp;</pre>
+<p><b>Notación:</b> l = letra (a-z, A-Z); d = dígito (0-9); del = espacio, tabulador, retorno de carro o salto de línea; c = cualquier carácter salvo <code>'</code>, salto de línea y eof; c1 = cualquier carácter salvo <code>*</code>; c2 = cualquier carácter salvo <code>*</code> y <code>/</code>; eof = fin de fichero.</p>
+
+<h2>2.3 Autómata Finito Determinista</h2>
+<p>Los estados con doble círculo son finales (generan un token). <b>o.c.</b> (otro carácter) indica una transición que no consume el carácter leído (lectura adelantada): el carácter se procesará al pedir el siguiente token. Cualquier transición no dibujada es un error léxico (apartado 2.5).</p>
+<div class="aut"><svg width="1014pt" height="448pt"
+ viewBox="0.00 0.00 1014.00 448.20" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:c2pa="http://c2pa.org/manifest"><metadata><c2pa:manifest>AAAWgmp1bWIAAAAeanVtZGMycGEAEQAQgAAAqgA4m3EDYzJwYQAAABZcanVtYgAAAEdqdW1kYzJtYQARABCAAACqADibcQN1cm46YzJwYTo2YzYyYWYxOS05NjZjLTQzODYtODBiMi04Y2U4N2FmOGQ4ZjAAAAADl2p1bWIAAAApanVtZGMyYXMAEQAQgAAAqgA4m3EDYzJwYS5hc3NlcnRpb25zAAAAALxqdW1iAAAARGp1bWRjYm9yABEAEIAAAKoAOJtxE2MycGEuaW5ncmVkaWVudC52MwAAAAAYYzJzaMDBfMrH476FAtxWjRAt7+AAAABwY2JvcqNpZGM6Zm9ybWF0bWltYWdlL3N2Zyt4bWxqaW5zdGFuY2VJRHgseG1wOmlpZDo1YjA5ZGUwMi0xYzIyLTQxN2EtYjI2MS1jNTU5ZDQ2ODEyZDZscmVsYXRpb25zaGlwaHBhcmVudE9mAAAB4mp1bWIAAABBanVtZGNib3IAEQAQgAAAqgA4m3ETYzJwYS5hY3Rpb25zLnYyAAAAABhjMnNoTCshPCl4ey1khGiqTeJORwAAAZljYm9yomdhY3Rpb25zgqJmYWN0aW9ua2MycGEub3BlbmVkanBhcmFtZXRlcnOha2luZ3JlZGllbnRzgaJjdXJseC1zZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmluZ3JlZGllbnQudjNkaGFzaFgg3CbHhOBeoeHei9nVTzEzy6RJ4NjwA1ypIup/nPk3OqWkZmFjdGlvbngdY29tLmFudGhyb3BpYy5jbGF1ZGUucHJvdmlkZWRqcGFyYW1ldGVyc6F4H2NvbS5hbnRocm9waWMub3JpZ2luLWNvbmZpZGVuY2VndW5rbm93bmtkZXNjcmlwdGlvbnhmQ2xhdWRlIHByb3ZpZGVkIHRoaXMgZmlsZSBhdCB0aGUgcmVxdWVzdCBvZiBhIHVzZXIgYW5kIG1heSBoYXZlIGNyZWF0ZWQgb3IgbW9kaWZpZWQgdGhlIGZpbGUgY29udGVudHMubXNvZnR3YXJlQWdlbnShZG5hbWVmQ2xhdWRlcmFsbEFjdGlvbnNJbmNsdWRlZPUAAADIanVtYgAAAEBqdW1kY2JvcgARABCAAACqADibcRNjMnBhLmhhc2guZGF0YQAAAAAYYzJzaANtCCM3NXeajUqtOU4gqXIAAACAY2JvcqVjYWxnZnNoYTI1NmNwYWRMAAAAAAAAAAAAAAAAZGhhc2hYID7OFs7W+gRaLgUbC1UlYp61XnLQO9vkt97yV3KVwnIXZG5hbWVuanVtYmYgbWFuaWZlc3RqZXhjbHVzaW9uc4GiZXN0YXJ0GQG/Zmxlbmd0aBkeBAAAAj5qdW1iAAAAJ2p1bWRjMmNsABEAEIAAAKoAOJtxA2MycGEuY2xhaW0udjIAAAACD2Nib3KlY2FsZ2ZzaGEyNTZpc2lnbmF0dXJleE1zZWxmI2p1bWJmPS9jMnBhL3VybjpjMnBhOjZjNjJhZjE5LTk2NmMtNDM4Ni04MGIyLThjZTg3YWY4ZDhmMC9jMnBhLnNpZ25hdHVyZWppbnN0YW5jZUlEeCx4bXA6aWlkOjg5MzQ1MjNjLWM2Y2EtNDc0My04YjViLTRiMWRjOWMzNDVhM3JjcmVhdGVkX2Fzc2VydGlvbnODomN1cmx4LXNlbGYjanVtYmY9YzJwYS5hc3NlcnRpb25zL2MycGEuaW5ncmVkaWVudC52M2RoYXNoWCDcJseE4F6h4d6L2dVPMTPLpEng2PADXKki6n+c+Tc6paJjdXJseCpzZWxmI2p1bWJmPWMycGEuYXNzZXJ0aW9ucy9jMnBhLmFjdGlvbnMudjJkaGFzaFgg6Mk83w6v5U/absYCJD5ngftobLvqmgJss4iHB7/Gst+iY3VybHgpc2VsZiNqdW1iZj1jMnBhLmFzc2VydGlvbnMvYzJwYS5oYXNoLmRhdGFkaGFzaFgghIga1YLRAGN89ygEKZ7bLu9MERhpUYciqj2Zd7qAreF0Y2xhaW1fZ2VuZXJhdG9yX2luZm+jZG5hbWVvQW50aHJvcGljIEZpbGVzZ3ZlcnNpb25lMS4wLjBrc3BlY1ZlcnNpb25lMi40LjAAABA4anVtYgAAAChqdW1kYzJjcwARABCAAACqADibcQNjMnBhLnNpZ25hdHVyZQAAABAIY2JvctKEWQISogEmGCFZAgowggIGMIIBjaADAgECAhRA5aAK7sI50L64g/oGQgU9Z1UTADAKBggqhkjOPQQDAzBJMRcwFQYDVQQKEw5BbnRocm9waWMsIFBCQzEuMCwGA1UEAxMlQW50aHJvcGljIENvbnRlbnQgQ3JlZGVudGlhbHMgUm9vdCBDQTAeFw0yNjA4MDcxODQzNTZaFw0yODA4MDYxOTQzNTZaMEQxFzAVBgNVBAoTDkFudGhyb3BpYywgUEJDMSkwJwYDVQQDEyBBbnRocm9waWMgQ2xhdWRlIENvbnRlbnQgU2lnbmluZzBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABJh6CmvLUBgFFNU0vUKlOVtE6djd17L5SuwX0LemFisBM3dkd/3cyjxFA3Qo5S46fX0/ihY0VZ7mfb9KF703t5OjWDBWMA4GA1UdDwEB/wQEAwIHgDAVBgNVHSUEDjAMBgorBgEEAYPoXgIBMAwGA1UdEwEB/wQCMAAwHwYDVR0jBBgwFoAUzlHiBIFOZFsj+OPEz5o+nMHXXMIwCgYIKoZIzj0EAwMDZwAwZAIwMXMdFJ4BetLLVY7ORuE9noqbbAZOZn/aArXyTwFAZfKrPzxF2vPoJNf1+UCdg1XGAjBwX1zd9WGqYkqmL5SFqw1QySjr1zJfpJM9+1rdDwSPLMOPOjKuiXjoU/pUUeG9RwmhY3BhZFkNngAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAPZYQE3uHbrT00hT9AFMp8DSBSbvLfwHQ9MZ20hCxDbTjm1OE1mlX8if4v/GSWvFXLaV02rOLPwZr+Zx7qb0Szqm8YA=</c2pa:manifest></metadata>
+<g id="graph0" class="graph" transform="scale(1 1) rotate(0) translate(4 444.2)">
+<title>AFD</title>
+<polygon fill="white" stroke="transparent" points="-4,4 -4,-444.2 1010,-444.2 1010,4 -4,4"/>
+<!-- start -->
+<g id="node1" class="node">
+<title>start</title>
+<ellipse fill="black" stroke="black" cx="436" cy="-436.6" rx="3.6" ry="3.6"/>
+</g>
+<!-- 0 -->
+<g id="node2" class="node">
+<title>0</title>
+<ellipse fill="none" stroke="black" cx="436" cy="-376" rx="16" ry="16"/>
+<text text-anchor="middle" x="436" y="-373.2" font-family="Helvetica,sans-Serif" font-size="11.00">0</text>
+</g>
+<!-- start&#45;&gt;0 -->
+<g id="edge1" class="edge">
+<title>start&#45;&gt;0</title>
+<path fill="none" stroke="black" d="M436,-432.77C436,-427.19 436,-414.22 436,-402.2"/>
+<polygon fill="black" stroke="black" points="439.5,-402.09 436,-392.09 432.5,-402.09 439.5,-402.09"/>
+</g>
+<!-- 0&#45;&gt;0 -->
+<g id="edge2" class="edge">
+<title>0&#45;&gt;0</title>
+<path fill="none" stroke="black" d="M450.64,-382.72C456.3,-383.02 461,-380.78 461,-376 461,-374.8 460.71,-373.77 460.18,-372.89"/>
+<polygon fill="black" stroke="black" points="461.23,-369.55 450.64,-369.28 458.75,-376.09 461.23,-369.55"/>
+<text text-anchor="middle" x="469.5" y="-373.2" font-family="Helvetica,sans-Serif" font-size="11.00">del</text>
+</g>
+<!-- 21 -->
+<g id="node12" class="node">
+<title>21</title>
+<ellipse fill="none" stroke="black" cx="20" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="20" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="20" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">21</text>
+</g>
+<!-- 0&#45;&gt;21 -->
+<g id="edge31" class="edge">
+<title>0&#45;&gt;21</title>
+<path fill="none" stroke="black" d="M420.04,-374.78C373.4,-373.8 233.6,-368.52 122,-340 85.7,-330.72 76.34,-326.93 44,-308 43.71,-307.83 43.41,-307.65 43.12,-307.48"/>
+<polygon fill="black" stroke="black" points="45,-304.52 34.77,-301.74 41.03,-310.29 45,-304.52"/>
+<text text-anchor="middle" x="127" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">+</text>
+</g>
+<!-- 22 -->
+<g id="node13" class="node">
+<title>22</title>
+<ellipse fill="none" stroke="black" cx="69" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="69" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="69" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">22</text>
+</g>
+<!-- 0&#45;&gt;22 -->
+<g id="edge32" class="edge">
+<title>0&#45;&gt;22</title>
+<path fill="none" stroke="black" d="M420.09,-374.22C378.84,-371.92 265.27,-363.74 174,-340 136.54,-330.25 126.53,-327.33 93,-308 92.71,-307.83 92.41,-307.66 92.12,-307.48"/>
+<polygon fill="black" stroke="black" points="93.99,-304.52 83.75,-301.77 90.04,-310.3 93.99,-304.52"/>
+<text text-anchor="middle" x="179" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">&gt;</text>
+</g>
+<!-- 23 -->
+<g id="node14" class="node">
+<title>23</title>
+<ellipse fill="none" stroke="black" cx="118" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="118" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="118" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">23</text>
+</g>
+<!-- 0&#45;&gt;23 -->
+<g id="edge33" class="edge">
+<title>0&#45;&gt;23</title>
+<path fill="none" stroke="black" d="M420.13,-373.37C385.03,-369.54 298.39,-358.84 228,-340 188.6,-329.46 177.53,-328.01 142,-308 141.7,-307.83 141.41,-307.66 141.11,-307.49"/>
+<polygon fill="black" stroke="black" points="142.97,-304.52 132.73,-301.82 139.05,-310.32 142.97,-304.52"/>
+<text text-anchor="middle" x="230.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">!</text>
+</g>
+<!-- 24 -->
+<g id="node15" class="node">
+<title>24</title>
+<ellipse fill="none" stroke="black" cx="167" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="167" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="167" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">24</text>
+</g>
+<!-- 0&#45;&gt;24 -->
+<g id="edge34" class="edge">
+<title>0&#45;&gt;24</title>
+<path fill="none" stroke="black" d="M420.1,-373.33C379.55,-368.52 269.93,-352.07 191,-308 190.7,-307.83 190.41,-307.67 190.11,-307.49"/>
+<polygon fill="black" stroke="black" points="191.96,-304.52 181.71,-301.84 188.06,-310.33 191.96,-304.52"/>
+<text text-anchor="middle" x="262.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">(</text>
+</g>
+<!-- 25 -->
+<g id="node16" class="node">
+<title>25</title>
+<ellipse fill="none" stroke="black" cx="216" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="216" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="216" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">25</text>
+</g>
+<!-- 0&#45;&gt;25 -->
+<g id="edge35" class="edge">
+<title>0&#45;&gt;25</title>
+<path fill="none" stroke="black" d="M420.52,-371.73C386.44,-364.12 302.99,-343.1 241,-308 240.58,-307.76 240.17,-307.52 239.75,-307.28"/>
+<polygon fill="black" stroke="black" points="241.42,-304.18 231.16,-301.54 237.53,-310 241.42,-304.18"/>
+<text text-anchor="middle" x="309.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">)</text>
+</g>
+<!-- 26 -->
+<g id="node17" class="node">
+<title>26</title>
+<ellipse fill="none" stroke="black" cx="265" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="265" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="265" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">26</text>
+</g>
+<!-- 0&#45;&gt;26 -->
+<g id="edge36" class="edge">
+<title>0&#45;&gt;26</title>
+<path fill="none" stroke="black" d="M420.94,-369.39C393.83,-359 335.39,-335.34 290,-308 289.59,-307.75 289.18,-307.5 288.77,-307.25"/>
+<polygon fill="black" stroke="black" points="290.46,-304.16 280.24,-301.4 286.51,-309.94 290.46,-304.16"/>
+<text text-anchor="middle" x="351.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">{</text>
+</g>
+<!-- 27 -->
+<g id="node18" class="node">
+<title>27</title>
+<ellipse fill="none" stroke="black" cx="314" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="314" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="314" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">27</text>
+</g>
+<!-- 0&#45;&gt;27 -->
+<g id="edge37" class="edge">
+<title>0&#45;&gt;27</title>
+<path fill="none" stroke="black" d="M423,-366.3C404.27,-353.69 368.66,-329.5 339,-308 338.61,-307.72 338.22,-307.44 337.83,-307.15"/>
+<polygon fill="black" stroke="black" points="339.63,-304.13 329.52,-300.97 335.46,-309.75 339.63,-304.13"/>
+<text text-anchor="middle" x="386.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">}</text>
+</g>
+<!-- 28 -->
+<g id="node19" class="node">
+<title>28</title>
+<ellipse fill="none" stroke="black" cx="363" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="363" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="363" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">28</text>
+</g>
+<!-- 0&#45;&gt;28 -->
+<g id="edge38" class="edge">
+<title>0&#45;&gt;28</title>
+<path fill="none" stroke="black" d="M425.85,-363.04C414.64,-349.84 396.33,-328.27 382.36,-311.81"/>
+<polygon fill="black" stroke="black" points="384.65,-309.09 375.51,-303.74 379.31,-313.62 384.65,-309.09"/>
+<text text-anchor="middle" x="408" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">;</text>
+</g>
+<!-- 29 -->
+<g id="node20" class="node">
+<title>29</title>
+<ellipse fill="none" stroke="black" cx="412" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="412" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="412" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">29</text>
+</g>
+<!-- 0&#45;&gt;29 -->
+<g id="edge39" class="edge">
+<title>0&#45;&gt;29</title>
+<path fill="none" stroke="black" d="M431.93,-360.41C428.66,-348.69 423.96,-331.87 419.95,-317.49"/>
+<polygon fill="black" stroke="black" points="423.24,-316.26 417.18,-307.57 416.5,-318.14 423.24,-316.26"/>
+<text text-anchor="middle" x="428" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">,</text>
+</g>
+<!-- 30 -->
+<g id="node21" class="node">
+<title>30</title>
+<ellipse fill="none" stroke="black" cx="461" cy="-288" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="461" cy="-288" rx="20" ry="20"/>
+<text text-anchor="middle" x="461" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">30</text>
+</g>
+<!-- 0&#45;&gt;30 -->
+<g id="edge40" class="edge">
+<title>0&#45;&gt;30</title>
+<path fill="none" stroke="black" d="M440.24,-360.41C443.65,-348.69 448.54,-331.87 452.72,-317.49"/>
+<polygon fill="black" stroke="black" points="456.17,-318.15 455.6,-307.57 449.45,-316.19 456.17,-318.15"/>
+<text text-anchor="middle" x="458" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">eof</text>
+</g>
+<!-- 1 -->
+<g id="node22" class="node">
+<title>1</title>
+<ellipse fill="none" stroke="black" cx="506" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="506" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">1</text>
+</g>
+<!-- 0&#45;&gt;1 -->
+<g id="edge3" class="edge">
+<title>0&#45;&gt;1</title>
+<path fill="none" stroke="black" d="M447.08,-363.99C453.67,-357.26 462.07,-348.36 469,-340 476.83,-330.55 484.9,-319.59 491.5,-310.26"/>
+<polygon fill="black" stroke="black" points="494.47,-312.12 497.32,-301.92 488.72,-308.12 494.47,-312.12"/>
+<text text-anchor="middle" x="485" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">l, _</text>
+</g>
+<!-- 2 -->
+<g id="node23" class="node">
+<title>2</title>
+<ellipse fill="none" stroke="black" cx="596" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="596" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">2</text>
+</g>
+<!-- 0&#45;&gt;2 -->
+<g id="edge6" class="edge">
+<title>0&#45;&gt;2</title>
+<path fill="none" stroke="black" d="M450.45,-368.78C481.57,-355.26 553.92,-323.21 576,-308 576.62,-307.57 577.24,-307.13 577.86,-306.66"/>
+<polygon fill="black" stroke="black" points="580.2,-309.27 585.53,-300.12 575.65,-303.94 580.2,-309.27"/>
+<text text-anchor="middle" x="539.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">d</text>
+</g>
+<!-- 5 -->
+<g id="node26" class="node">
+<title>5</title>
+<ellipse fill="none" stroke="black" cx="662" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="662" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">5</text>
+</g>
+<!-- 0&#45;&gt;5 -->
+<g id="edge13" class="edge">
+<title>0&#45;&gt;5</title>
+<path fill="none" stroke="black" d="M451.12,-370.18C497.95,-355.25 637.7,-310.57 642,-308 642.65,-307.61 643.29,-307.2 643.93,-306.77"/>
+<polygon fill="black" stroke="black" points="646.19,-309.44 651.72,-300.41 641.76,-304.02 646.19,-309.44"/>
+<text text-anchor="middle" x="580" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">&#39;</text>
+</g>
+<!-- 7 -->
+<g id="node27" class="node">
+<title>7</title>
+<ellipse fill="none" stroke="black" cx="728" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="728" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">7</text>
+</g>
+<!-- 0&#45;&gt;7 -->
+<g id="edge16" class="edge">
+<title>0&#45;&gt;7</title>
+<path fill="none" stroke="black" d="M451.43,-371.43C507.32,-358.49 696.41,-314.43 708,-308 708.66,-307.63 709.31,-307.24 709.96,-306.83"/>
+<polygon fill="black" stroke="black" points="712.18,-309.54 717.81,-300.56 707.81,-304.06 712.18,-309.54"/>
+<text text-anchor="middle" x="631" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">/</text>
+</g>
+<!-- 10 -->
+<g id="node30" class="node">
+<title>10</title>
+<ellipse fill="none" stroke="black" cx="769" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="769" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">10</text>
+</g>
+<!-- 0&#45;&gt;10 -->
+<g id="edge23" class="edge">
+<title>0&#45;&gt;10</title>
+<path fill="none" stroke="black" d="M452.16,-374.89C500.53,-373.88 647.05,-365.93 749,-308 749.66,-307.63 750.31,-307.23 750.95,-306.81"/>
+<polygon fill="black" stroke="black" points="753.18,-309.51 758.78,-300.51 748.8,-304.05 753.18,-309.51"/>
+<text text-anchor="middle" x="704" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">&#45;</text>
+</g>
+<!-- 11 -->
+<g id="node31" class="node">
+<title>11</title>
+<ellipse fill="none" stroke="black" cx="863" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="863" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">11</text>
+</g>
+<!-- 0&#45;&gt;11 -->
+<g id="edge26" class="edge">
+<title>0&#45;&gt;11</title>
+<path fill="none" stroke="black" d="M452.13,-374C494.51,-371.13 612.35,-361.68 708,-340 755.2,-329.3 808.44,-310.17 838.63,-298.62"/>
+<polygon fill="black" stroke="black" points="840.24,-301.75 848.3,-294.88 837.71,-295.22 840.24,-301.75"/>
+<text text-anchor="middle" x="756" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">=</text>
+</g>
+<!-- 12 -->
+<g id="node32" class="node">
+<title>12</title>
+<ellipse fill="none" stroke="black" cx="933" cy="-288" rx="16" ry="16"/>
+<text text-anchor="middle" x="933" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">12</text>
+</g>
+<!-- 0&#45;&gt;12 -->
+<g id="edge29" class="edge">
+<title>0&#45;&gt;12</title>
+<path fill="none" stroke="black" d="M452.12,-374.14C499.9,-371.42 644.81,-361.82 763,-340 817.7,-329.9 831.1,-325.19 884,-308 892.3,-305.3 901.23,-301.97 909.17,-298.85"/>
+<polygon fill="black" stroke="black" points="910.59,-302.05 918.57,-295.08 907.99,-295.56 910.59,-302.05"/>
+<text text-anchor="middle" x="822.5" y="-331.2" font-family="Helvetica,sans-Serif" font-size="11.00">&amp;</text>
+</g>
+<!-- 6 -->
+<g id="node3" class="node">
+<title>6</title>
+<ellipse fill="none" stroke="black" cx="644" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="644" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="644" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">6</text>
+</g>
+<!-- 13 -->
+<g id="node4" class="node">
+<title>13</title>
+<ellipse fill="none" stroke="black" cx="505" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="505" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="505" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">13</text>
+</g>
+<!-- 14 -->
+<g id="node5" class="node">
+<title>14</title>
+<ellipse fill="none" stroke="black" cx="554" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="554" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="554" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">14</text>
+</g>
+<!-- 15 -->
+<g id="node6" class="node">
+<title>15</title>
+<ellipse fill="none" stroke="black" cx="599" cy="-20" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="599" cy="-20" rx="20" ry="20"/>
+<text text-anchor="middle" x="599" y="-17.2" font-family="Helvetica,sans-Serif" font-size="11.00">15</text>
+</g>
+<!-- 16 -->
+<g id="node7" class="node">
+<title>16</title>
+<ellipse fill="none" stroke="black" cx="765" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="765" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="765" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">16</text>
+</g>
+<!-- 17 -->
+<g id="node8" class="node">
+<title>17</title>
+<ellipse fill="none" stroke="black" cx="814" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="814" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="814" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">17</text>
+</g>
+<!-- 18 -->
+<g id="node9" class="node">
+<title>18</title>
+<ellipse fill="none" stroke="black" cx="863" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="863" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="863" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">18</text>
+</g>
+<!-- 19 -->
+<g id="node10" class="node">
+<title>19</title>
+<ellipse fill="none" stroke="black" cx="912" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="912" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="912" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">19</text>
+</g>
+<!-- 20 -->
+<g id="node11" class="node">
+<title>20</title>
+<ellipse fill="none" stroke="black" cx="961" cy="-196" rx="16" ry="16"/>
+<ellipse fill="none" stroke="black" cx="961" cy="-196" rx="20" ry="20"/>
+<text text-anchor="middle" x="961" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">20</text>
+</g>
+<!-- 1&#45;&gt;13 -->
+<g id="edge5" class="edge">
+<title>1&#45;&gt;13</title>
+<path fill="none" stroke="black" d="M505.83,-271.73C505.69,-259.38 505.5,-241.63 505.33,-226.52"/>
+<polygon fill="black" stroke="black" points="508.82,-226.07 505.21,-216.11 501.82,-226.14 508.82,-226.07"/>
+<text text-anchor="middle" x="515.5" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">o.c.</text>
+</g>
+<!-- 1&#45;&gt;1 -->
+<g id="edge4" class="edge">
+<title>1&#45;&gt;1</title>
+<path fill="none" stroke="black" d="M519.63,-296.49C525.73,-297.3 531,-294.47 531,-288 531,-285.78 530.38,-283.98 529.31,-282.62"/>
+<polygon fill="black" stroke="black" points="530.22,-279.23 519.63,-279.51 528.08,-285.9 530.22,-279.23"/>
+<text text-anchor="middle" x="546.5" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">l, d, _</text>
+</g>
+<!-- 2&#45;&gt;14 -->
+<g id="edge8" class="edge">
+<title>2&#45;&gt;14</title>
+<path fill="none" stroke="black" d="M587.99,-273.89C583.6,-266.43 578.2,-256.85 574,-248 570.48,-240.59 567.06,-232.39 564.08,-224.77"/>
+<polygon fill="black" stroke="black" points="567.26,-223.3 560.43,-215.2 560.72,-225.79 567.26,-223.3"/>
+<text text-anchor="middle" x="584.5" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">o.c.</text>
+</g>
+<!-- 2&#45;&gt;2 -->
+<g id="edge7" class="edge">
+<title>2&#45;&gt;2</title>
+<path fill="none" stroke="black" d="M609.63,-296.49C615.73,-297.3 621,-294.47 621,-288 621,-285.78 620.38,-283.98 619.31,-282.62"/>
+<polygon fill="black" stroke="black" points="620.22,-279.23 609.63,-279.51 618.08,-285.9 620.22,-279.23"/>
+<text text-anchor="middle" x="624.5" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">d</text>
+</g>
+<!-- 3 -->
+<g id="node24" class="node">
+<title>3</title>
+<ellipse fill="none" stroke="black" cx="599" cy="-196" rx="16" ry="16"/>
+<text text-anchor="middle" x="599" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">3</text>
+</g>
+<!-- 2&#45;&gt;3 -->
+<g id="edge9" class="edge">
+<title>2&#45;&gt;3</title>
+<path fill="none" stroke="black" d="M596.51,-271.73C596.96,-258.2 597.63,-238.19 598.16,-222.27"/>
+<polygon fill="black" stroke="black" points="601.66,-222.15 598.5,-212.04 594.67,-221.92 601.66,-222.15"/>
+<text text-anchor="middle" x="599" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">.</text>
+</g>
+<!-- 4 -->
+<g id="node25" class="node">
+<title>4</title>
+<ellipse fill="none" stroke="black" cx="599" cy="-108" rx="16" ry="16"/>
+<text text-anchor="middle" x="599" y="-105.2" font-family="Helvetica,sans-Serif" font-size="11.00">4</text>
+</g>
+<!-- 3&#45;&gt;4 -->
+<g id="edge10" class="edge">
+<title>3&#45;&gt;4</title>
+<path fill="none" stroke="black" d="M599,-179.62C599,-167.15 599,-149.3 599,-134.66"/>
+<polygon fill="black" stroke="black" points="602.5,-134.24 599,-124.24 595.5,-134.24 602.5,-134.24"/>
+<text text-anchor="middle" x="602.5" y="-147.2" font-family="Helvetica,sans-Serif" font-size="11.00">d</text>
+</g>
+<!-- 4&#45;&gt;15 -->
+<g id="edge12" class="edge">
+<title>4&#45;&gt;15</title>
+<path fill="none" stroke="black" d="M599,-91.62C599,-80.15 599,-64.13 599,-50.24"/>
+<polygon fill="black" stroke="black" points="602.5,-50.15 599,-40.15 595.5,-50.15 602.5,-50.15"/>
+<text text-anchor="middle" x="609.5" y="-63.2" font-family="Helvetica,sans-Serif" font-size="11.00">o.c.</text>
+</g>
+<!-- 4&#45;&gt;4 -->
+<g id="edge11" class="edge">
+<title>4&#45;&gt;4</title>
+<path fill="none" stroke="black" d="M613.14,-115.81C619.02,-116.34 624,-113.74 624,-108 624,-106.21 623.51,-104.72 622.66,-103.54"/>
+<polygon fill="black" stroke="black" points="623.73,-100.2 613.14,-100.19 621.41,-106.81 623.73,-100.2"/>
+<text text-anchor="middle" x="627.5" y="-105.2" font-family="Helvetica,sans-Serif" font-size="11.00">d</text>
+</g>
+<!-- 5&#45;&gt;6 -->
+<g id="edge15" class="edge">
+<title>5&#45;&gt;6</title>
+<path fill="none" stroke="black" d="M659.03,-272.14C656.53,-259.64 652.88,-241.41 649.81,-226.04"/>
+<polygon fill="black" stroke="black" points="653.18,-225.08 647.79,-215.96 646.32,-226.45 653.18,-225.08"/>
+<text text-anchor="middle" x="656" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">&#39;</text>
+</g>
+<!-- 5&#45;&gt;5 -->
+<g id="edge14" class="edge">
+<title>5&#45;&gt;5</title>
+<path fill="none" stroke="black" d="M675.63,-296.49C681.73,-297.3 687,-294.47 687,-288 687,-285.78 686.38,-283.98 685.31,-282.62"/>
+<polygon fill="black" stroke="black" points="686.22,-279.23 675.63,-279.51 684.08,-285.9 686.22,-279.23"/>
+<text text-anchor="middle" x="690.5" y="-285.2" font-family="Helvetica,sans-Serif" font-size="11.00">c</text>
+</g>
+<!-- 8 -->
+<g id="node28" class="node">
+<title>8</title>
+<ellipse fill="none" stroke="black" cx="689" cy="-196" rx="16" ry="16"/>
+<text text-anchor="middle" x="689" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">8</text>
+</g>
+<!-- 7&#45;&gt;8 -->
+<g id="edge17" class="edge">
+<title>7&#45;&gt;8</title>
+<path fill="none" stroke="black" d="M721.91,-272.94C715.84,-258.94 706.41,-237.19 699.2,-220.55"/>
+<polygon fill="black" stroke="black" points="702.24,-218.75 695.05,-210.96 695.82,-221.53 702.24,-218.75"/>
+<text text-anchor="middle" x="713" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">*</text>
+</g>
+<!-- 8&#45;&gt;8 -->
+<g id="edge18" class="edge">
+<title>8&#45;&gt;8</title>
+<path fill="none" stroke="black" d="M702.63,-204.49C708.73,-205.3 714,-202.47 714,-196 714,-193.78 713.38,-191.98 712.31,-190.62"/>
+<polygon fill="black" stroke="black" points="713.22,-187.23 702.63,-187.51 711.08,-193.9 713.22,-187.23"/>
+<text text-anchor="middle" x="720.5" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">c1</text>
+</g>
+<!-- 9 -->
+<g id="node29" class="node">
+<title>9</title>
+<ellipse fill="none" stroke="black" cx="709" cy="-108" rx="16" ry="16"/>
+<text text-anchor="middle" x="709" y="-105.2" font-family="Helvetica,sans-Serif" font-size="11.00">9</text>
+</g>
+<!-- 8&#45;&gt;9 -->
+<g id="edge19" class="edge">
+<title>8&#45;&gt;9</title>
+<path fill="none" stroke="black" d="M688.82,-179.6C689.03,-169.36 689.97,-155.69 693,-144 694.09,-139.78 695.67,-135.44 697.41,-131.31"/>
+<polygon fill="black" stroke="black" points="700.59,-132.77 701.62,-122.22 694.24,-129.82 700.59,-132.77"/>
+<text text-anchor="middle" x="696" y="-147.2" font-family="Helvetica,sans-Serif" font-size="11.00">*</text>
+</g>
+<!-- 9&#45;&gt;0 -->
+<g id="edge22" class="edge">
+<title>9&#45;&gt;0</title>
+<path fill="none" stroke="black" d="M725.13,-110.35C779.28,-115.27 953.03,-134.11 986,-176 1023.33,-223.44 998.44,-267.15 954,-308 881.27,-374.85 557.14,-376.44 462.21,-375.43"/>
+<polygon fill="black" stroke="black" points="462.08,-371.93 452.04,-375.3 461.99,-378.93 462.08,-371.93"/>
+<text text-anchor="middle" x="1004" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">/</text>
+</g>
+<!-- 9&#45;&gt;8 -->
+<g id="edge21" class="edge">
+<title>9&#45;&gt;8</title>
+<path fill="none" stroke="black" d="M705.56,-123.81C702.61,-136.46 698.32,-154.93 694.84,-169.88"/>
+<polygon fill="black" stroke="black" points="691.34,-169.49 692.48,-180.02 698.16,-171.07 691.34,-169.49"/>
+<text text-anchor="middle" x="706.5" y="-147.2" font-family="Helvetica,sans-Serif" font-size="11.00">c2</text>
+</g>
+<!-- 9&#45;&gt;9 -->
+<g id="edge20" class="edge">
+<title>9&#45;&gt;9</title>
+<path fill="none" stroke="black" d="M723.14,-115.81C729.02,-116.34 734,-113.74 734,-108 734,-106.21 733.51,-104.72 732.66,-103.54"/>
+<polygon fill="black" stroke="black" points="733.73,-100.2 723.14,-100.19 731.41,-106.81 733.73,-100.2"/>
+<text text-anchor="middle" x="737" y="-105.2" font-family="Helvetica,sans-Serif" font-size="11.00">*</text>
+</g>
+<!-- 10&#45;&gt;16 -->
+<g id="edge24" class="edge">
+<title>10&#45;&gt;16</title>
+<path fill="none" stroke="black" d="M768.32,-271.73C767.77,-259.38 766.98,-241.63 766.31,-226.52"/>
+<polygon fill="black" stroke="black" points="769.79,-225.94 765.85,-216.11 762.8,-226.25 769.79,-225.94"/>
+<text text-anchor="middle" x="769" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">&#45;</text>
+</g>
+<!-- 10&#45;&gt;17 -->
+<g id="edge25" class="edge">
+<title>10&#45;&gt;17</title>
+<path fill="none" stroke="black" d="M775.83,-273.33C782.45,-260.09 792.66,-239.68 800.85,-223.29"/>
+<polygon fill="black" stroke="black" points="804.06,-224.7 805.4,-214.19 797.8,-221.57 804.06,-224.7"/>
+<text text-anchor="middle" x="804.5" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">o.c.</text>
+</g>
+<!-- 11&#45;&gt;18 -->
+<g id="edge27" class="edge">
+<title>11&#45;&gt;18</title>
+<path fill="none" stroke="black" d="M863,-271.73C863,-259.38 863,-241.63 863,-226.52"/>
+<polygon fill="black" stroke="black" points="866.5,-226.11 863,-216.11 859.5,-226.11 866.5,-226.11"/>
+<text text-anchor="middle" x="868" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">=</text>
+</g>
+<!-- 11&#45;&gt;19 -->
+<g id="edge28" class="edge">
+<title>11&#45;&gt;19</title>
+<path fill="none" stroke="black" d="M870.23,-273.72C877.44,-260.48 888.71,-239.78 897.73,-223.21"/>
+<polygon fill="black" stroke="black" points="901.02,-224.48 902.73,-214.03 894.87,-221.14 901.02,-224.48"/>
+<text text-anchor="middle" x="900.5" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">o.c.</text>
+</g>
+<!-- 12&#45;&gt;20 -->
+<g id="edge30" class="edge">
+<title>12&#45;&gt;20</title>
+<path fill="none" stroke="black" d="M937.5,-272.54C941.46,-259.82 947.33,-240.94 952.21,-225.24"/>
+<polygon fill="black" stroke="black" points="955.62,-226.07 955.25,-215.48 948.94,-223.99 955.62,-226.07"/>
+<text text-anchor="middle" x="952.5" y="-239.2" font-family="Helvetica,sans-Serif" font-size="11.00">&amp;</text>
+</g>
+</g>
+</svg>
+</div>
+
+<h2>2.4 Acciones semánticas</h2>
+<pre>Leer (L):        car := leer()      en toda transición salvo las marcadas o.c.
+                 (si car = &#x27;\n&#x27; entonces linea := linea + 1)
+0 → 1   (l, _)   lex := car
+1 → 1            lex := lex ⊕ car
+1 → 13  (o.c.)   si (pr := buscarPR(lex)) ≠ nulo entonces genToken(pr, -)
+                 si no { p := GestorTS.tratarIdentificador(lex); genToken(ID, p) }
+0 → 2   (d)      valor := valor(d);  lex := car
+2 → 2   (d)      valor := valor * 10 + valor(d);  lex := lex ⊕ car
+2 → 14  (o.c.)   si valor &gt; 32767 entonces error(107) si no genToken(ENTERO, valor)
+2 → 3   (.)      lex := lex ⊕ &#x27;.&#x27;
+3 → 4, 4 → 4     lex := lex ⊕ car
+4 → 15  (o.c.)   si real(lex) &gt; 117549436.0 entonces error(109) si no genToken(REAL, lex)
+0 → 5   (&#x27;)      lex := λ
+5 → 5   (c)      lex := lex ⊕ car
+5 → 6   (&#x27;)      si long(lex) &gt; 64 entonces error(106) si no genToken(CADENA, lex)
+7, 8, 9          comentario: solo se lee (no se genera token); 9 → 0 vuelve al inicio
+10 → 16 (-)      genToken(DECREMENTO, -)      10 → 17 (o.c.)  genToken(RESTA, -)
+11 → 18 (=)      genToken(IGUAL, -)           11 → 19 (o.c.)  genToken(ASIG, -)
+12 → 20 (&amp;)      genToken(AND, -)
+0 → 21..29       genToken(SUMA | MAYOR | NOT | PARABIERTO | PARCERRADO |
+                          LLAVEABIERTA | LLAVECERRADA | PUNTOYCOMA | COMA, -)
+0 → 30  (eof)    genToken(EOF, -)</pre>
+<p><b>Funciones utilizadas:</b> <i>leer()</i> devuelve el siguiente carácter; <i>buscarPR(lex)</i> consulta la tabla (hash) de palabras reservadas; <i>genToken(código, atributo)</i> crea el token, lo escribe en el fichero de tokens y lo devuelve al Analizador Sintáctico; <i>GestorTS.tratarIdentificador(lex)</i> devuelve la posición del identificador en la TS (apartado 3); <i>error(n)</i> envía el error n al Gestor de Errores.</p>
+
+<h2>2.5 Errores léxicos</h2>
+<p>Cuando se detecta un error no se genera token: se informa al Gestor de Errores, se descarta lo leído y se vuelve al estado 0 para continuar el análisis (así se detectan todos los errores del fichero en una sola ejecución).</p>
+<table><tr><th>Cód.</th><th>Estado</th><th>Causa</th><th>Mensaje generado</th></tr><tr><td>101</td><td>0</td><td>carácter que no pertenece al lenguaje (p. ej. @, #, *, &quot;, ñ)</td><td><code>el caracter &#x27;@&#x27; no pertenece al lenguaje</code></td></tr><tr><td>102</td><td>12</td><td>&#x27;&amp;&#x27; no seguido de otro &#x27;&amp;&#x27;</td><td><code>se esperaba &#x27;&amp;&amp;&#x27; (y logico) pero hay &#x27;&amp;&#x27; seguido de espacio en blanco</code></td></tr><tr><td>103</td><td>7</td><td>&#x27;/&#x27; no seguido de &#x27;*&#x27; (solo hay comentarios de bloque)</td><td><code>caracter &#x27;/&#x27; no valido: los comentarios empiezan por &#x27;/*&#x27;</code></td></tr><tr><td>104</td><td>8, 9</td><td>fin de fichero dentro de un comentario</td><td><code>el comentario &#x27;/*&#x27; no se ha cerrado con &#x27;*/&#x27; antes del fin de fichero</code></td></tr><tr><td>105</td><td>5</td><td>salto de línea o fin de fichero dentro de una cadena</td><td><code>la cadena no esta cerrada: falta la comilla simple (&#x27;) antes del salto de linea</code></td></tr><tr><td>106</td><td>5 → 6</td><td>cadena de más de 64 caracteres</td><td><code>la cadena tiene 78 caracteres y el maximo es 64</code></td></tr><tr><td>107</td><td>2 → 14</td><td>entero mayor que 32767</td><td><code>la constante entera 40000 supera el maximo (32767)</code></td></tr><tr><td>108</td><td>3</td><td>real sin dígitos tras el punto</td><td><code>la constante real &#x27;3.&#x27; esta mal formada: ...</code></td></tr><tr><td>109</td><td>4 → 15</td><td>real mayor que 117549436.0</td><td><code>la constante real 200000000.5 supera el maximo (117549436.0)</code></td></tr></table>
+
+<h1 class="salto">3. Diseño de la Tabla de Símbolos</h1>
+<h2>3.1 Estructura</h2>
+<p>Cada Tabla de Símbolos tiene un <b>número</b> único (creciente según el orden de creación; la global es la #1) y una lista de <b>entradas</b> en orden de inserción, cuya posición es el atributo del token ID. Para buscar un lexema en tiempo constante se mantiene además una <b>tabla hash</b> lexema → posición. Cada entrada contiene:</p>
+<table><tr><th>Atributo</th><th>Uso</th></tr>
+<tr><td>Lexema</td><td>Nombre del identificador (lo rellena el Analizador Léxico).</td></tr>
+<tr><td>Tipo</td><td>'int', 'float', 'boolean', 'string' o 'funcion'.</td></tr>
+<tr><td>Despl</td><td>Dirección relativa de la variable (int 1, float 2, boolean 1, string 64 palabras).</td></tr>
+<tr><td>numParam, TipoParamXX</td><td>Número y tipo de los parámetros de una función (paso por valor, por lo que no se necesita ModoParam).</td></tr>
+<tr><td>TipoRetorno</td><td>Tipo devuelto por la función (incluido 'void').</td></tr>
+<tr><td>EtiqFuncion</td><td>Etiqueta asociada a la función.</td></tr></table>
+<p>En esta entrega solo se rellena el lexema; el resto de atributos los completará el Analizador Semántico.</p>
+
+<h2>3.2 Organización</h2>
+<p>Como PdL-JS no permite funciones anidadas, el Gestor de TS mantiene como máximo dos tablas activas: la <b>global</b>, que existe durante todo el análisis, y la <b>local</b> de la función que se esté analizando. Al empezar la definición de una función se crea su tabla local; al terminarla se vuelca al fichero y se destruye. La tabla global se vuelca al terminar el análisis, justo antes de destruirse. Los nombres de las funciones se guardan siempre en la tabla global.</p>
+<p>El Analizador Léxico solo inserta/busca lexemas, siguiendo esta política (la variable <i>zonaDeclaracion</i> la activará el Analizador Sintáctico/Semántico mientras procese un <code>let</code>, la cabecera de una función o sus parámetros):</p>
+<ul><li><b>En zona de declaración:</b> se inserta en la tabla actual (local si existe, global si no) y se devuelve su posición. La redeclaración la detectará el Analizador Semántico.</li>
+<li><b>Fuera de zona de declaración:</b> se busca primero en la tabla local y después en la global. Si no está, se inserta en la global, ya que en PdL-JS un identificador usado sin declarar es una variable global entera.</li></ul>
+<p>En esta primera entrega aún no existe el Analizador Sintáctico, por lo que no se crean tablas locales y todos los identificadores se insertan en la tabla global, una sola vez cada uno.</p>
+<h2>3.3 Operaciones</h2>
+<p><code>crearTablaLocal(nombre)</code>, <code>destruirTablaLocal()</code> (vuelca y destruye), <code>tratarIdentificador(lexema)</code>, <code>buscar(lexema)</code>, <code>insertar(lexema)</code>, y las operaciones para añadir atributos a una entrada (tipo, desplazamiento, parámetros, tipo de retorno y etiqueta), que usará el Analizador Semántico.</p>
+
+<h1>4. Diseño inicial del Gestor de Errores</h1>
+<p>Es un módulo único, compartido por todos los analizadores, con la operación <code>error(tipo, código, línea, mensaje)</code>. El tipo indica el módulo que detecta el error (léxico, sintáctico o semántico) y el código lo identifica: 100-199 léxicos, 200-299 sintácticos y 300-399 semánticos. Cada error se muestra por pantalla en el momento en que se detecta y, al terminar, se vuelcan todos al fichero <code>errores.txt</code> (si no hay errores, el fichero lo indica). El formato es:</p>
+<pre>Error &lt;tipo&gt; (&lt;código&gt;) en linea &lt;n&gt;: &lt;mensaje&gt;</pre>
+<p><b>Gestión del número de línea:</b> el Analizador Léxico lleva la variable <i>linea</i>, que se incrementa al leer cada salto de línea (también dentro de comentarios). Cada token guarda la línea en la que empieza, para que los analizadores sintáctico y semántico puedan informar de la línea exacta; los errores léxicos de cadenas y comentarios se asocian a la línea en la que empiezan.</p>
+<p>Los mensajes se escriben en términos del usuario (qué ha escrito mal y cómo debería ser), no del procesador.</p>
+
+<h1 class="salto">Anexo A. Casos de prueba</h1>
+<p>Todos los resultados han sido generados por el procesador sin ninguna edición manual. Los casos 1-3 son correctos y los casos 4-6 contienen errores léxicos.</p>
+<div class=""><h3>Caso 1: correcto (correcto1.javascript)</h3><p>Declaraciones con inicialización, prompt/echo, operadores +, -, &gt;, !, &amp;&amp; y constantes lógicas.</p><h4>Código fuente</h4><pre>/* Caso correcto 1: declaraciones, asignaciones y E/S */
+let contador int;
+let media float = 12.75;
+let nombre string = &#x27;Grupo 131&#x27;;
+let fin boolean = false;
+
+prompt contador;
+contador = contador + 10 - 3;
+echo &#x27;Hola, &#x27; ;
+echo nombre;
+if (contador &gt; 100) echo &#x27;Contador grande&#x27;;
+fin = !fin &amp;&amp; true;
+echo media;
+</pre><div class="two"><div><h4>Fichero de tokens (tokens.txt)</h4><pre>&lt;LET, &gt;
+&lt;ID, 0&gt;
+&lt;INT, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LET, &gt;
+&lt;ID, 1&gt;
+&lt;FLOAT, &gt;
+&lt;ASIG, &gt;
+&lt;REAL, 12.75&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LET, &gt;
+&lt;ID, 2&gt;
+&lt;STRING, &gt;
+&lt;ASIG, &gt;
+&lt;CADENA, &quot;Grupo 131&quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LET, &gt;
+&lt;ID, 3&gt;
+&lt;BOOLEAN, &gt;
+&lt;ASIG, &gt;
+&lt;FALSE, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;PROMPT, &gt;
+&lt;ID, 0&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ID, 0&gt;
+&lt;ASIG, &gt;
+&lt;ID, 0&gt;
+&lt;SUMA, &gt;
+&lt;ENTERO, 10&gt;
+&lt;RESTA, &gt;
+&lt;ENTERO, 3&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ECHO, &gt;
+&lt;CADENA, &quot;Hola, &quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ECHO, &gt;
+&lt;ID, 2&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;IF, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 0&gt;
+&lt;MAYOR, &gt;
+&lt;ENTERO, 100&gt;
+&lt;PARCERRADO, &gt;
+&lt;ECHO, &gt;
+&lt;CADENA, &quot;Contador grande&quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ID, 3&gt;
+&lt;ASIG, &gt;
+&lt;NOT, &gt;
+&lt;ID, 3&gt;
+&lt;AND, &gt;
+&lt;TRUE, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ECHO, &gt;
+&lt;ID, 1&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;EOF, &gt;
+</pre></div><div><h4>Tabla de Símbolos (ts.txt)</h4><pre>TABLA PRINCIPAL #1:
+* LEXEMA : &#x27;contador&#x27;
+  --------- ----------
+* LEXEMA : &#x27;media&#x27;
+  --------- ----------
+* LEXEMA : &#x27;nombre&#x27;
+  --------- ----------
+* LEXEMA : &#x27;fin&#x27;
+  --------- ----------
+
+</pre></div></div></div><div class="caso"><h3>Caso 2: correcto (correcto2.javascript)</h3><p>Función con parámetros, bucle do-while, pre-auto-decremento (--) y comentario de bloque de varias líneas.</p><h4>Código fuente</h4><pre>/* Caso correcto 2: funcion con parametros,
+   bucle do-while y pre-auto-decremento */
+function cuentaAtras int (inicio int, paso int)
+{
+    let i int = inicio;
+    do {
+        echo i;
+        --i;
+        i = i - paso;
+    } while (i &gt; 0);
+    return i;
+}
+
+let resultado int;
+resultado = cuentaAtras(20, 2);
+echo &#x27;Fin de la cuenta&#x27;;
+</pre><div class="two"><div><h4>Fichero de tokens (tokens.txt)</h4><pre>&lt;FUNCTION, &gt;
+&lt;ID, 0&gt;
+&lt;INT, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 1&gt;
+&lt;INT, &gt;
+&lt;COMA, &gt;
+&lt;ID, 2&gt;
+&lt;INT, &gt;
+&lt;PARCERRADO, &gt;
+&lt;LLAVEABIERTA, &gt;
+&lt;LET, &gt;
+&lt;ID, 3&gt;
+&lt;INT, &gt;
+&lt;ASIG, &gt;
+&lt;ID, 1&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;DO, &gt;
+&lt;LLAVEABIERTA, &gt;
+&lt;ECHO, &gt;
+&lt;ID, 3&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;DECREMENTO, &gt;
+&lt;ID, 3&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ID, 3&gt;
+&lt;ASIG, &gt;
+&lt;ID, 3&gt;
+&lt;RESTA, &gt;
+&lt;ID, 2&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LLAVECERRADA, &gt;
+&lt;WHILE, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 3&gt;
+&lt;MAYOR, &gt;
+&lt;ENTERO, 0&gt;
+&lt;PARCERRADO, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;RETURN, &gt;
+&lt;ID, 3&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LLAVECERRADA, &gt;
+&lt;LET, &gt;
+&lt;ID, 4&gt;
+&lt;INT, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ID, 4&gt;
+&lt;ASIG, &gt;
+&lt;ID, 0&gt;
+&lt;PARABIERTO, &gt;
+&lt;ENTERO, 20&gt;
+&lt;COMA, &gt;
+&lt;ENTERO, 2&gt;
+&lt;PARCERRADO, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ECHO, &gt;
+&lt;CADENA, &quot;Fin de la cuenta&quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;EOF, &gt;
+</pre></div><div><h4>Tabla de Símbolos (ts.txt)</h4><pre>TABLA PRINCIPAL #1:
+* LEXEMA : &#x27;cuentaAtras&#x27;
+  --------- ----------
+* LEXEMA : &#x27;inicio&#x27;
+  --------- ----------
+* LEXEMA : &#x27;paso&#x27;
+  --------- ----------
+* LEXEMA : &#x27;i&#x27;
+  --------- ----------
+* LEXEMA : &#x27;resultado&#x27;
+  --------- ----------
+
+</pre></div></div></div><div class="caso"><h3>Caso 3: correcto (correcto3.javascript)</h3><p>Varias funciones, if simple, ==, llamadas anidadas, constantes en el límite (32767 y 117549436.0), cadena vacía, identificador con &#x27;_&#x27; y comentario con asteriscos.</p><h4>Código fuente</h4><pre>/* Caso correcto 3: if, comparaciones y llamadas anidadas */
+function esIgual boolean (a int, b int)
+{
+    return a == b;
+}
+
+function maximo int (x int, y int)
+{
+    if (x &gt; y) return x;
+    return y;
+}
+
+let _total int = 0;
+let precio float = 3.0;
+let mensaje string = &#x27;&#x27;;
+_total = maximo(32767, --_total);
+if (esIgual(_total, 7) &amp;&amp; !(precio &gt; 117549436.0)) mensaje = &#x27;iguales: (a == b)&#x27;;
+echo mensaje; /* comentario ** con asteriscos **/
+</pre><div class="two"><div><h4>Fichero de tokens (tokens.txt)</h4><pre>&lt;FUNCTION, &gt;
+&lt;ID, 0&gt;
+&lt;BOOLEAN, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 1&gt;
+&lt;INT, &gt;
+&lt;COMA, &gt;
+&lt;ID, 2&gt;
+&lt;INT, &gt;
+&lt;PARCERRADO, &gt;
+&lt;LLAVEABIERTA, &gt;
+&lt;RETURN, &gt;
+&lt;ID, 1&gt;
+&lt;IGUAL, &gt;
+&lt;ID, 2&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LLAVECERRADA, &gt;
+&lt;FUNCTION, &gt;
+&lt;ID, 3&gt;
+&lt;INT, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 4&gt;
+&lt;INT, &gt;
+&lt;COMA, &gt;
+&lt;ID, 5&gt;
+&lt;INT, &gt;
+&lt;PARCERRADO, &gt;
+&lt;LLAVEABIERTA, &gt;
+&lt;IF, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 4&gt;
+&lt;MAYOR, &gt;
+&lt;ID, 5&gt;
+&lt;PARCERRADO, &gt;
+&lt;RETURN, &gt;
+&lt;ID, 4&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;RETURN, &gt;
+&lt;ID, 5&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LLAVECERRADA, &gt;
+&lt;LET, &gt;
+&lt;ID, 6&gt;
+&lt;INT, &gt;
+&lt;ASIG, &gt;
+&lt;ENTERO, 0&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LET, &gt;
+&lt;ID, 7&gt;
+&lt;FLOAT, &gt;
+&lt;ASIG, &gt;
+&lt;REAL, 3.0&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;LET, &gt;
+&lt;ID, 8&gt;
+&lt;STRING, &gt;
+&lt;ASIG, &gt;
+&lt;CADENA, &quot;&quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ID, 6&gt;
+&lt;ASIG, &gt;
+&lt;ID, 3&gt;
+&lt;PARABIERTO, &gt;
+&lt;ENTERO, 32767&gt;
+&lt;COMA, &gt;
+&lt;DECREMENTO, &gt;
+&lt;ID, 6&gt;
+&lt;PARCERRADO, &gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;IF, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 0&gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 6&gt;
+&lt;COMA, &gt;
+&lt;ENTERO, 7&gt;
+&lt;PARCERRADO, &gt;
+&lt;AND, &gt;
+&lt;NOT, &gt;
+&lt;PARABIERTO, &gt;
+&lt;ID, 7&gt;
+&lt;MAYOR, &gt;
+&lt;REAL, 117549436.0&gt;
+&lt;PARCERRADO, &gt;
+&lt;PARCERRADO, &gt;
+&lt;ID, 8&gt;
+&lt;ASIG, &gt;
+&lt;CADENA, &quot;iguales: (a == b)&quot;&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;ECHO, &gt;
+&lt;ID, 8&gt;
+&lt;PUNTOYCOMA, &gt;
+&lt;EOF, &gt;
+</pre></div><div><h4>Tabla de Símbolos (ts.txt)</h4><pre>TABLA PRINCIPAL #1:
+* LEXEMA : &#x27;esIgual&#x27;
+  --------- ----------
+* LEXEMA : &#x27;a&#x27;
+  --------- ----------
+* LEXEMA : &#x27;b&#x27;
+  --------- ----------
+* LEXEMA : &#x27;maximo&#x27;
+  --------- ----------
+* LEXEMA : &#x27;x&#x27;
+  --------- ----------
+* LEXEMA : &#x27;y&#x27;
+  --------- ----------
+* LEXEMA : &#x27;_total&#x27;
+  --------- ----------
+* LEXEMA : &#x27;precio&#x27;
+  --------- ----------
+* LEXEMA : &#x27;mensaje&#x27;
+  --------- ----------
+
+</pre></div></div></div><div class="caso"><h3>Caso 4: con errores léxicos (error1.javascript)</h3><p>Operadores no implementados por el grupo (&amp;, *, /) y carácter no válido (@).</p><h4>Código fuente</h4><pre>/* Caso erroneo 1: caracteres no validos y operadores incompletos */
+let a int = 5;
+let b int = 7;
+if (a &gt; b &amp; b &gt; 0) echo &#x27;mayor&#x27;;
+a = a * 2;
+b = b @ 3;
+a = a / 2;
+</pre><h4>Listado de errores (errores.txt)</h4><pre>Error lexico (102) en linea 4: se esperaba &#x27;&amp;&amp;&#x27; (y logico) pero hay &#x27;&amp;&#x27; seguido de espacio en blanco
+Error lexico (101) en linea 5: el caracter &#x27;*&#x27; no pertenece al lenguaje
+Error lexico (101) en linea 6: el caracter &#x27;@&#x27; no pertenece al lenguaje
+Error lexico (103) en linea 7: caracter &#x27;/&#x27; no valido: los comentarios empiezan por &#x27;/*&#x27;
+
+Total: 4 error(es).
+</pre></div><div class="caso"><h3>Caso 5: con errores léxicos (error2.javascript)</h3><p>Constantes fuera de rango (entero y real), real mal formado y cadena con comillas dobles.</p><h4>Código fuente</h4><pre>/* Caso erroneo 2: constantes fuera de rango y mal formadas */
+let n int = 40000;
+let r float = 3.;
+let s float = 200000000.5;
+let ok int = 32767;
+let x float = 0.5;
+echo &quot;texto&quot;;
+</pre><h4>Listado de errores (errores.txt)</h4><pre>Error lexico (107) en linea 2: la constante entera 40000 supera el maximo (32767)
+Error lexico (108) en linea 3: la constante real &#x27;3.&#x27; esta mal formada: falta algun digito tras el punto (ej: 3.0)
+Error lexico (109) en linea 4: la constante real 200000000.5 supera el maximo (117549436.0)
+Error lexico (101) en linea 7: el caracter &#x27;&quot;&#x27; no pertenece al lenguaje (las cadenas van con comilla simple)
+Error lexico (101) en linea 7: el caracter &#x27;&quot;&#x27; no pertenece al lenguaje (las cadenas van con comilla simple)
+
+Total: 5 error(es).
+</pre></div><div class="caso"><h3>Caso 6: con errores léxicos (error3.javascript)</h3><p>Cadena sin cerrar, cadena de más de 64 caracteres y comentario de bloque sin cerrar.</p><h4>Código fuente</h4><pre>/* Caso erroneo 3: cadenas incorrectas y comentario sin cerrar */
+let saludo string = &#x27;Hola mundo;
+let largo string = &#x27;Esta cadena es demasiado larga porque tiene mas de sesenta y cuatro caracteres&#x27;;
+let bien string = &#x27;correcta&#x27;;
+echo bien;
+/* este comentario no se cierra nunca
+echo saludo;
+</pre><h4>Listado de errores (errores.txt)</h4><pre>Error lexico (105) en linea 2: la cadena no esta cerrada: falta la comilla simple (&#x27;) antes del salto de linea
+Error lexico (106) en linea 3: la cadena tiene 78 caracteres y el maximo es 64
+Error lexico (104) en linea 6: el comentario &#x27;/*&#x27; no se ha cerrado con &#x27;*/&#x27; antes del fin de fichero
+
+Total: 3 error(es).
+</pre></div>
+
+<h1 class="salto">Anexo B. Declaración de uso de herramientas de IA</h1>
+<p><i>[COMPLETAR por el grupo antes de entregar: herramientas utilizadas, finalidad de su uso y alcance de su contribución, según exige la normativa de la práctica.]</i></p>
+</body></html>

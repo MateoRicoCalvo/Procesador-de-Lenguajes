@@ -1,0 +1,172 @@
+CAMBIOS PARA LA MEMORIA (Grupo 131)
+Pegar en Pages con Edicion > Pegar y adaptar estilo (o Cmd+Opcion+Mayus+V) para que no meta formato.
+Antes de pegar: Pages > Ajustes > Correccion automatica > desactivar "Usar comillas y rayas tipograficas".
+
+======================================================================
+1) PORTADA
+======================================================================
+Cambiar "Escuela Superior de Ingenieros Informaticos" por:
+Escuela Técnica Superior de Ingenieros Informáticos
+
+Cabecera de las paginas: cambiar "Implementación del Analizador Léxico" por:
+Primera entrega – Grupo 131
+
+Introduccion, primera frase: "Hemos decidido el desarrollar" -> "Hemos decidido desarrollar"
+
+Apartado 1.1, Cadenas: dejar las comillas rectas -> Con comillas simples (' ')
+
+======================================================================
+2) APARTADO 2.1 - AÑADIR DESPUES DE LA LISTA DE TIPOS DE TOKENS
+   (mejor como tabla de 2 columnas: Elemento | Token)
+======================================================================
+Elemento            Token
+let                 <LET, >
+function            <FUNCTION, >
+void                <VOID, >
+int                 <INT, >
+float               <FLOAT, >
+boolean             <BOOLEAN, >
+string              <STRING, >
+if                  <IF, >
+do                  <DO, >
+while               <WHILE, >
+return              <RETURN, >
+echo                <ECHO, >
+prompt              <PROMPT, >
+true                <TRUE, >
+false               <FALSE, >
+Identificador       <ID, posición en la TS>
+Constante entera    <ENTERO, valor>
+Constante real      <REAL, valor>
+Cadena ' '          <CADENA, contenido>
++                   <SUMA, >
+-                   <RESTA, >
+--                  <DECREMENTO, >
+=                   <ASIG, >
+==                  <IGUAL, >
+>                   <MAYOR, >
+&&                  <AND, >
+!                   <NOT, >
+(                   <PARABIERTO, >
+)                   <PARCERRADO, >
+{                   <LLAVEABIERTA, >
+}                   <LLAVECERRADA, >
+;                   <PUNTOYCOMA, >
+,                   <COMA, >
+fin de fichero      <EOF, >
+
+======================================================================
+3) APARTADO 2.1 - AÑADIR DESPUES DE LAS EXPRESIONES REGULARES
+======================================================================
+Gramática regular (tipo 3) del analizador:
+G = (N, T, S, P), con N = {S, A, B, C, D, E, F, G, H, I, K, M} y axioma S.
+
+S → del S | l A | _ A | d B | ' E | / F | - G | = H | & I | + | > | ! | ( | ) | { | } | ; | , | eof
+A → l A | d A | _ A | λ
+B → d B | . C | λ
+C → d D
+D → d D | λ
+E → c E | '
+F → * K
+K → c1 K | * M
+M → * M | c2 K | / S
+G → - | λ
+H → = | λ
+I → &
+
+Notación: l = letra (a-z, A-Z); d = dígito (0-9); del = espacio, tabulador, retorno de carro o salto de línea; c = cualquier carácter salvo ', salto de línea y eof; c1 = cualquier carácter salvo *; c2 = cualquier carácter salvo * y /.
+
+======================================================================
+4) APARTADO 2.4 - AÑADIR AL FINAL (lista formal de acciones semanticas)
+======================================================================
+Acciones semánticas:
+Leer: car := leer() en toda transición salvo las marcadas "o.c."; si car = salto de línea, linea := linea + 1.
+0 → 1 (l, _): lex := car
+1 → 1 (l, d, _): lex := lex ⊕ car
+1 → 13 (o.c.): si lex es palabra reservada, genToken(PR, -); si no, p := tratarIdentificador(lex); genToken(ID, p)
+0 → 2 (d): valor := valor(d); lex := car
+2 → 2 (d): valor := valor * 10 + valor(d); lex := lex ⊕ car
+2 → 14 (o.c.): si valor > 32767 entonces error(107) si no genToken(ENTERO, valor)
+2 → 3 (.): lex := lex ⊕ '.'
+3 → 4 y 4 → 4 (d): lex := lex ⊕ car
+4 → 15 (o.c.): si lex > 117549436.0 entonces error(109) si no genToken(REAL, lex)
+0 → 5 ('): lex := λ
+5 → 5 (c): lex := lex ⊕ car
+5 → 6 ('): si longitud(lex) > 64 entonces error(106) si no genToken(CADENA, lex)
+7, 8, 9: comentario; solo se lee, no se genera token. 9 → 0 vuelve al estado inicial.
+10 → 16 (-): genToken(DECREMENTO, -)        10 → 17 (o.c.): genToken(RESTA, -)
+11 → 18 (=): genToken(IGUAL, -)             11 → 19 (o.c.): genToken(ASIG, -)
+12 → 20 (&): genToken(AND, -)
+0 → 21..29: genToken(SUMA | MAYOR | NOT | PARABIERTO | PARCERRADO | LLAVEABIERTA | LLAVECERRADA | PUNTOYCOMA | COMA, -)
+0 → 30 (eof): genToken(EOF, -)
+
+======================================================================
+5) APARTADO 2.5 - AÑADIR AL FINAL (tabla de 4 columnas)
+======================================================================
+Código | Estado | Causa | Mensaje
+101 | 0 | carácter que no pertenece al lenguaje | el caracter '@' no pertenece al lenguaje
+102 | 12 | '&' no seguido de otro '&' | se esperaba '&&' (y logico) pero hay '&' seguido de espacio en blanco
+103 | 7 | '/' no seguido de '*' | caracter '/' no valido: los comentarios empiezan por '/*'
+104 | 8, 9 | fin de fichero dentro de un comentario | el comentario '/*' no se ha cerrado con '*/' antes del fin de fichero
+105 | 5 | salto de línea o fin de fichero dentro de una cadena | la cadena no esta cerrada: falta la comilla simple (') antes del salto de linea
+106 | 5 → 6 | cadena de más de 64 caracteres | la cadena tiene 78 caracteres y el maximo es 64
+107 | 2 → 14 | entero mayor que 32767 | la constante entera 40000 supera el maximo (32767)
+108 | 3 | real sin dígitos tras el punto | la constante real '3.' esta mal formada: falta algun digito tras el punto (ej: 3.0)
+109 | 4 → 15 | real mayor que 117549436.0 | la constante real 200000000.5 supera el maximo (117549436.0)
+
+======================================================================
+6) APARTADO 3.1 - AÑADIR AL FINAL
+======================================================================
+Cada entrada de la Tabla de Símbolos tendrá los siguientes atributos:
+- Lexema: nombre del identificador (lo rellena el Analizador Léxico).
+- Tipo: 'int', 'float', 'boolean', 'string' o 'funcion'.
+- Despl: dirección relativa de la variable (int 1, float 2, boolean 1 y string 64 palabras).
+- numParam y TipoParamXX: número y tipo de los parámetros de una función. Como el paso es por valor, no se necesita ModoParam.
+- TipoRetorno: tipo que devuelve la función (incluido 'void').
+- EtiqFuncion: etiqueta asociada a la función.
+En esta entrega solo se rellena el lexema; el resto de atributos los completará el Analizador Semántico.
+
+======================================================================
+7) ANEXO A
+======================================================================
+- Encima de cada bloque poned un titulo: "Código fuente", "Fichero de tokens", "Tabla de Símbolos" o "Errores".
+- Caso 2: la ultima linea de la tabla debe ser exactamente (con guiones normales):
+  --------- ----------
+- Caso 3: sustituir el codigo fuente por el contenido EXACTO de pruebas\correcto3\correcto3.javascript:
+
+/* Caso correcto 3: if, comparaciones y llamadas anidadas */
+function esIgual boolean (a int, b int)
+{
+    return a == b;
+}
+
+function maximo int (x int, y int)
+{
+    if (x > y) return x;
+    return y;
+}
+
+let _total int = 0;
+let precio float = 3.0;
+let mensaje string = '';
+_total = maximo(32767, --_total);
+if (esIgual(_total, 7) && !(precio > 117549436.0)) mensaje = 'iguales: (a == b)';
+echo mensaje; /* comentario ** con asteriscos **/
+
+- Caso 5: sustituir los errores por:
+
+Error lexico (107) en linea 2: la constante entera 40000 supera el maximo (32767)
+Error lexico (108) en linea 3: la constante real '3.' esta mal formada: falta algun digito tras el punto (ej: 3.0)
+Error lexico (109) en linea 4: la constante real 200000000.5 supera el maximo (117549436.0)
+Error lexico (101) en linea 7: el caracter '"' no pertenece al lenguaje (las cadenas van con comilla simple)
+Error lexico (101) en linea 7: el caracter '"' no pertenece al lenguaje (las cadenas van con comilla simple)
+
+Total: 5 error(es).
+
+- Caso 6: sustituir los errores por:
+
+Error lexico (105) en linea 2: la cadena no esta cerrada: falta la comilla simple (') antes del salto de linea
+Error lexico (106) en linea 3: la cadena tiene 78 caracteres y el maximo es 64
+Error lexico (104) en linea 6: el comentario '/*' no se ha cerrado con '*/' antes del fin de fichero
+
+Total: 3 error(es).

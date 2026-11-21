@@ -1,0 +1,5 @@
+Error lexico (105) en linea 2: la cadena no esta cerrada: falta la comilla simple (') antes del salto de linea
+Error lexico (106) en linea 3: la cadena tiene 78 caracteres y el maximo es 64
+Error lexico (104) en linea 6: el comentario '/*' no se ha cerrado con '*/' antes del fin de fichero
+
+Total: 3 error(es).

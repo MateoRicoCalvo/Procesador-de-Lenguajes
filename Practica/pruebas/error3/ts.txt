@@ -1,0 +1,8 @@
+TABLA PRINCIPAL #1:
+* LEXEMA : 'saludo'
+  --------- ----------
+* LEXEMA : 'largo'
+  --------- ----------
+* LEXEMA : 'bien'
+  --------- ----------
+

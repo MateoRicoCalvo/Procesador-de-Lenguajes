@@ -1,0 +1,23 @@
+digraph AFD {
+  rankdir=TB; nodesep=0.12; ranksep=0.55;
+  node [shape=circle, fontname="Helvetica", fontsize=11, width=0.45, fixedsize=true];
+  edge [fontname="Helvetica", fontsize=11];
+  start [shape=point, width=0.1];
+  start -> 0;
+  node [shape=doublecircle];
+  6 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30;
+  node [shape=circle];
+  0 -> 0 [label="del"];
+  0 -> 1 [label="l, _"]; 1 -> 1 [label="l, d, _"]; 1 -> 13 [label="o.c."];
+  0 -> 2 [label="d"]; 2 -> 2 [label="d"]; 2 -> 14 [label="o.c."];
+  2 -> 3 [label="."]; 3 -> 4 [label="d"]; 4 -> 4 [label="d"]; 4 -> 15 [label="o.c."];
+  0 -> 5 [label="'"]; 5 -> 5 [label="c"]; 5 -> 6 [label="'"];
+  0 -> 7 [label="/"]; 7 -> 8 [label="*"]; 8 -> 8 [label="c1"]; 8 -> 9 [label="*"];
+  9 -> 9 [label="*"]; 9 -> 8 [label="c2"]; 9 -> 0 [label="/"];
+  0 -> 10 [label="-"]; 10 -> 16 [label="-"]; 10 -> 17 [label="o.c."];
+  0 -> 11 [label="="]; 11 -> 18 [label="="]; 11 -> 19 [label="o.c."];
+  0 -> 12 [label="&"]; 12 -> 20 [label="&"];
+  0 -> 21 [label="+"]; 0 -> 22 [label=">"]; 0 -> 23 [label="!"];
+  0 -> 24 [label="("]; 0 -> 25 [label=")"]; 0 -> 26 [label="{"];
+  0 -> 27 [label="}"]; 0 -> 28 [label=";"]; 0 -> 29 [label=","]; 0 -> 30 [label="eof"];
+}

@@ -1,0 +1,25 @@
+Procesador de PdL-JS - Grupo 131
+=================================
+Opciones: do-while, pre-auto-decremento (--), comentario de bloque (/* */),
+cadenas con comilla simple (' '), analisis descendente recursivo.
+
+Estructura
+  src/pdl/            Fuentes Java
+    Procesador.java       Programa principal
+    AnalizadorLexico.java Automata del analizador lexico
+    TipoToken.java        Codigos de token
+    Token.java            Token y su formato de salida
+    GestorTS.java         Gestor de tablas de simbolos (global + local)
+    TablaSimbolos.java    Una tabla de simbolos
+    EntradaTS.java        Entrada de la tabla y su volcado
+    GestorErrores.java    Gestor de errores
+  Procesador.jar      Ejecutable
+  pruebas/            Casos de prueba (cada uno en su carpeta con sus salidas)
+  memoria/            Memoria de la entrega
+
+Ejecutar (Windows):  ejecutar.bat pruebas\correcto1\correcto1.javascript
+           o bien:   java -jar Procesador.jar fichero.javascript [dir_salida]
+Compilar:            compilar.bat
+
+Salidas (en el directorio del fuente salvo que se indique otro):
+  tokens.txt, ts.txt, errores.txt

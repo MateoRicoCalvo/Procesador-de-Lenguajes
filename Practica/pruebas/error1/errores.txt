@@ -1,0 +1,6 @@
+Error lexico (102) en linea 4: se esperaba '&&' (y logico) pero hay '&' seguido de espacio en blanco
+Error lexico (101) en linea 5: el caracter '*' no pertenece al lenguaje
+Error lexico (101) en linea 6: el caracter '@' no pertenece al lenguaje
+Error lexico (103) en linea 7: caracter '/' no valido: los comentarios empiezan por '/*'
+
+Total: 4 error(es).

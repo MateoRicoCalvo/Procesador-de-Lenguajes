@@ -1,0 +1,12 @@
+TABLA PRINCIPAL #1:
+* LEXEMA : 'cuentaAtras'
+  --------- ----------
+* LEXEMA : 'inicio'
+  --------- ----------
+* LEXEMA : 'paso'
+  --------- ----------
+* LEXEMA : 'i'
+  --------- ----------
+* LEXEMA : 'resultado'
+  --------- ----------
+
